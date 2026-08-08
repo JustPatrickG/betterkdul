@@ -19,7 +19,6 @@ async function GET(req, { params }) {
   return NextResponse.json({
     id: ref.id,
     name: ref.name,
-    trust: ref.trust,
     sourceUrl: ref.sourceUrl,
     fixtures: matches.map((m) => ({
       id: m.id,

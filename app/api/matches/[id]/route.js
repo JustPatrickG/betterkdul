@@ -50,18 +50,7 @@ async function GET(req, { params }) {
     officialSource: match.officialSource,
     settled: match.settled,
     consensus,
-    reports: match.reports.map((r) => ({
-      id: r.id,
-      reporter: r.account.displayName,
-      homeScore: r.homeScore,
-      awayScore: r.awayScore,
-      homeScorers: r.homeScorers,
-      awayScorers: r.awayScorers,
-      motm: r.motm,
-      yellowCards: r.yellowCards,
-      redCards: r.redCards,
-      createdAt: r.createdAt,
-    })),
+    reportCount: match.reports.length,
     eligibility: elig,
   });
 }

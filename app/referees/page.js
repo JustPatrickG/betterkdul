@@ -20,7 +20,7 @@ function RefereesPage() {
         referees.map((r) => (
           <Link key={r.id} href={`/referees/${r.id}`} className="card clickable" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{r.name}</div>
-            <div className="field-hint">{r.fixturesAssigned} FIXTURES · {r.resultsSubmitted} SUBMITTED · TRUST {r.trust}</div>
+            <div className="field-hint">{r.fixturesAssigned} FIXTURES · {r.resultsSubmitted} SUBMITTED</div>
           </Link>
         ))
       )}

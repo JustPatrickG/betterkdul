@@ -13,7 +13,6 @@ async function GET() {
     return {
       id: r.id,
       name: r.name,
-      trust: r.trust,
       fixturesAssigned: assigned.length,
       resultsSubmitted: submitted,
     };

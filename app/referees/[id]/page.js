@@ -24,7 +24,6 @@ function RefereePage({ params }) {
       <Link href="/referees" className="field-hint" style={{ display: 'inline-block', marginBottom: 10 }}>← Back to referees</Link>
       <h2 style={{ fontFamily: 'var(--disp)', fontSize: 22, margin: '4px 0' }}>{ref.name}</h2>
       <div className="stat-grid">
-        <div className="stat-box"><div className="v">{ref.trust}</div><div className="l">Trust score</div></div>
         <div className="stat-box"><div className="v">{ref.fixtures.length}</div><div className="l">Assigned fixtures</div></div>
       </div>
       <div className="section-title">Assigned Fixtures</div>

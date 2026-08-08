@@ -103,26 +103,7 @@ function MatchPage({ params }) {
         <div className="empty-state">No official result yet.</div>
       )}
 
-      <div className="section-title">Community Reports ({match.reports.length})</div>
-      {match.reports.length === 0 ? (
-        <div className="empty-state">No community reports yet — be the first.</div>
-      ) : (
-        match.reports.map((r) => (
-          <div className="card" key={r.id}>
-            <div className="field-hint">{r.reporter} · {new Date(r.createdAt).toLocaleString('en-IE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-            <div style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 15 }}>{r.homeScore} – {r.awayScore}</div>
-            {r.homeScorers && <div className="field-hint">⚽ {match.home}: {r.homeScorers}</div>}
-            {r.awayScorers && <div className="field-hint">⚽ {match.away}: {r.awayScorers}</div>}
-            {(r.motm || r.yellowCards || r.redCards) && (
-              <div className="field-hint">
-                {r.motm && `🏅 Their MOTM pick: ${r.motm} `}
-                {r.yellowCards && `🟨 ${r.yellowCards} `}
-                {r.redCards && `🟥 ${r.redCards}`}
-              </div>
-            )}
-          </div>
-        ))
-      )}
+      <div className="field-hint" style={{ margin: '10px 0' }}>{match.reportCount} report{match.reportCount !== 1 ? 's' : ''} submitted so far — the current score above reflects the weighted result of all of them.</div>
 
       <div className="section-title">Submit a Report</div>
       {!match.eligibility.ok ? (
