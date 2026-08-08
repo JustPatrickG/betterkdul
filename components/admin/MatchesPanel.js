@@ -8,6 +8,13 @@ const CLUBS = ['Naas Town', 'Sallins Rovers', 'Athy Celtic', 'Newbridge Town', '
   'Clane United', 'Monasterevin FC', 'Kilcullen Athletic', 'Leixlip United', 'Celbridge Town',
   'Maynooth Town', 'Confey FC', 'Rathangan Rovers', 'Ballymore Eustace', 'Two Mile House'];
 
+/* A <input type="datetime-local"> value like "2026-08-05T18:00" carries NO
+   timezone info — it's ambiguous by design. To make "18:00" mean the same
+   thing everywhere, we do the conversion ourselves in the browser (which
+   knows the admin's real local timezone), rather than letting the server
+   guess. toDatetimeLocalValue reads a stored UTC timestamp back out using
+   the browser's own local time getters, so editing an existing fixture
+   shows the kickoff time the admin actually meant, not the raw UTC hour. */
 function toDatetimeLocalValue(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -15,6 +22,10 @@ function toDatetimeLocalValue(iso) {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+// The reverse direction: turn what the admin typed (interpreted as their
+// own local time, since that's what a browser assumes for a naive
+// datetime-local string) into a proper UTC ISO string before it ever
+// leaves the browser — so the server never has to guess a timezone.
 function localDatetimeToISO(local) {
   if (!local) return null;
   const d = new Date(local);

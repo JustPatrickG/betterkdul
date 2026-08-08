@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 
 function statusLabel(s) {
@@ -30,9 +30,125 @@ const SUBMIT_ERROR_MESSAGES = {
   'invalid-score': 'Scores must be whole numbers between 0 and 50.',
 };
 
+/* One goal's entry row: a search-as-you-type box against that club's
+   roster, falling back to "add a new player" if nothing matches. Picking
+   an existing name sets playerId (full trust weight); typing a brand-new
+   one leaves playerId null (counts at reduced weight until someone else
+   independently uses the same name — see lib/algorithm.js). */
+function GoalRow({ index, club, ageGroup, tier, value, onChange }) {
+  const [query, setQuery] = useState(value.name || '');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const debounceRef = useRef(null);
+
+  function search(q) {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetch(`/api/players/search?q=${encodeURIComponent(q)}&club=${encodeURIComponent(club)}&ageGroup=${encodeURIComponent(ageGroup)}&tier=${encodeURIComponent(tier)}`)
+        .then((r) => r.json())
+        .then(setResults)
+        .catch(() => setResults([]));
+    }, 200);
+  }
+
+  function handleQueryChange(v) {
+    setQuery(v);
+    onChange({ ...value, name: v, playerId: null }); // typing clears any previous pick
+    setOpen(true);
+    search(v);
+  }
+
+  function pick(p) {
+    setQuery(p.name);
+    onChange({ ...value, name: p.name, playerId: p.id });
+    setOpen(false);
+  }
+
+  return (
+    <div className="card" style={{ position: 'relative' }}>
+      <div className="field-hint" style={{ marginBottom: 4 }}>Goal {index + 1}</div>
+      <div className="field">
+        <label>Player</label>
+        <input
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
+          onFocus={() => { setOpen(true); search(query); }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Start typing a name…"
+          autoComplete="off"
+        />
+        {open && results.length > 0 && (
+          <div style={{ position: 'absolute', zIndex: 5, background: 'var(--paper)', border: '1px solid var(--rule)', width: '100%', maxHeight: 160, overflowY: 'auto' }}>
+            {results.map((p) => (
+              <div
+                key={p.id}
+                onMouseDown={() => pick(p)}
+                style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--rule)' }}
+              >
+                {p.name}{!p.confirmed && <span className="field-hint"> · unconfirmed</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        {query && !value.playerId && (
+          <div className="field-hint" style={{ marginTop: 2 }}>No match picked — this will be added as a new player and count at reduced weight until someone else confirms them.</div>
+        )}
+      </div>
+      <div className="row2">
+        <div className="field">
+          <label>Minute (optional)</label>
+          <input type="number" min="0" max="130" value={value.minute ?? ''} onChange={(e) => onChange({ ...value, minute: e.target.value === '' ? '' : Number(e.target.value) })} />
+        </div>
+        <div className="field">
+          <label>Half</label>
+          <select value={value.half || ''} onChange={(e) => onChange({ ...value, half: e.target.value })}>
+            <option value="">—</option>
+            <option value="1st">1st half</option>
+            <option value="2nd">2nd half</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoalEntryList({ label, count, club, ageGroup, tier, goals, setGoals }) {
+  useEffect(() => {
+    // Grow or shrink the goal row list to match the score just typed in.
+    setGoals((prev) => {
+      const n = Number(count) || 0;
+      if (n === prev.length) return prev;
+      if (n < prev.length) return prev.slice(0, n);
+      return [...prev, ...Array.from({ length: n - prev.length }, () => ({ name: '', playerId: null, minute: '', half: '' }))];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count]);
+
+  if (!goals.length) return null;
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div className="field-hint" style={{ textTransform: 'uppercase', fontWeight: 600, margin: '10px 0 4px' }}>{label} goalscorers (optional)</div>
+      {goals.map((g, i) => (
+        <GoalRow
+          key={i}
+          index={i}
+          club={club}
+          ageGroup={ageGroup}
+          tier={tier}
+          value={g}
+          onChange={(v) => setGoals((prev) => prev.map((x, idx) => (idx === i ? v : x)))}
+        />
+      ))}
+    </div>
+  );
+}
+
 function MatchPage({ params }) {
   const [match, setMatch] = useState(null);
-  const [form, setForm] = useState({ homeScore: '', awayScore: '', homeScorers: '', awayScorers: '', motm: '', yellowCards: '', redCards: '' });
+  const [form, setForm] = useState({ homeScore: '', awayScore: '', motm: '', yellowCards: '', redCards: '' });
+  const [homeGoals, setHomeGoals] = useState([]);
+  const [awayGoals, setAwayGoals] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -53,10 +169,15 @@ function MatchPage({ params }) {
     setSubmitting(true);
     setError('');
     setSuccess('');
+    const body = {
+      ...form,
+      homeGoals: homeGoals.map((g) => ({ name: g.name, playerId: g.playerId, minute: g.minute === '' ? null : g.minute, half: g.half || null })),
+      awayGoals: awayGoals.map((g) => ({ name: g.name, playerId: g.playerId, minute: g.minute === '' ? null : g.minute, half: g.half || null })),
+    };
     const res = await fetch(`/api/matches/${params.id}/reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -65,7 +186,9 @@ function MatchPage({ params }) {
       return;
     }
     setSuccess('Report submitted — thanks!');
-    setForm({ homeScore: '', awayScore: '', homeScorers: '', awayScorers: '', motm: '', yellowCards: '', redCards: '' });
+    setForm({ homeScore: '', awayScore: '', motm: '', yellowCards: '', redCards: '' });
+    setHomeGoals([]);
+    setAwayGoals([]);
     load();
   }
 
@@ -123,14 +246,10 @@ function MatchPage({ params }) {
               <input type="number" min="0" max="50" required value={form.awayScore} onChange={(e) => setForm({ ...form, awayScore: e.target.value })} />
             </div>
           </div>
-          <div className="field">
-            <label>{match.home} goalscorers (optional, comma separated)</label>
-            <textarea placeholder="e.g. J. Murphy x2, L. Kelly" value={form.homeScorers} onChange={(e) => setForm({ ...form, homeScorers: e.target.value })} />
-          </div>
-          <div className="field">
-            <label>{match.away} goalscorers (optional, comma separated)</label>
-            <textarea placeholder="e.g. D. Fox, S. Ryan x2" value={form.awayScorers} onChange={(e) => setForm({ ...form, awayScorers: e.target.value })} />
-          </div>
+
+          <GoalEntryList label={match.home} count={form.homeScore} club={match.home} ageGroup={match.league} tier={match.tier} goals={homeGoals} setGoals={setHomeGoals} />
+          <GoalEntryList label={match.away} count={form.awayScore} club={match.away} ageGroup={match.league} tier={match.tier} goals={awayGoals} setGoals={setAwayGoals} />
+
           <div className="field">
             <label>Your man of the match (optional)</label>
             <input type="text" placeholder="Your own pick — this is an opinion, not scored" value={form.motm} onChange={(e) => setForm({ ...form, motm: e.target.value })} />

@@ -21,7 +21,7 @@ async function GET(req, { params }) {
   const info = await prisma.teamInfo.findUnique({ where: { key: `${club}|${league}|${tier}` } });
   const matches = await prisma.match.findMany({
     where: { league, tier, OR: [{ home: club }, { away: club }] },
-    include: { reports: { include: { account: { select: { trust: true } } } } },
+    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { player: true } } } } },
     orderBy: { date: 'asc' },
   });
   const referees = await prisma.referee.findMany();

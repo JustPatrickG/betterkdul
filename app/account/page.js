@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import PasswordInput from '../../components/PasswordInput';
 
 const LEAGUES = ['U10', 'U11', 'U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U18'];
@@ -37,9 +37,75 @@ function LoginForm({ onLoggedIn }) {
   );
 }
 
+/* Search-as-you-type against the shared player roster (same data, same
+   search endpoint as goal-scoring on a match report). Picking an
+   existing entry links the new account straight to that Player record;
+   typing a name that doesn't match anything just submits as-is, and the
+   signup route creates a fresh (unconfirmed) Player for it — same rule
+   as an unrecognized goalscorer name. */
+function PlayerNameSearch({ club, ageGroup, tier, value, onChange, onPick }) {
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const debounceRef = useRef(null);
+  const ready = Boolean(club && ageGroup && tier);
+
+  function search(q) {
+    if (!ready) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetch(`/api/players/search?q=${encodeURIComponent(q)}&club=${encodeURIComponent(club)}&ageGroup=${encodeURIComponent(ageGroup)}&tier=${encodeURIComponent(tier)}`)
+        .then((r) => r.json())
+        .then(setResults)
+        .catch(() => setResults([]));
+    }, 200);
+  }
+
+  function handleChange(v) {
+    onChange(v);
+    onPick(null); // typing clears any previous pick
+    setOpen(true);
+    search(v);
+  }
+
+  return (
+    <div className="field" style={{ position: 'relative' }}>
+      <label>Display name (your real name — this is how teammates and reporters will find you)</label>
+      <input
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+        onFocus={() => { if (ready) { setOpen(true); search(value); } }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={ready ? 'Start typing your name…' : 'Select age group, division, and club first'}
+        disabled={!ready}
+        autoComplete="off"
+        required
+      />
+      {open && results.length > 0 && (
+        <div style={{ position: 'absolute', zIndex: 5, background: 'var(--paper)', border: '1px solid var(--rule)', width: '100%', maxHeight: 160, overflowY: 'auto' }}>
+          {results.map((p) => (
+            <div
+              key={p.id}
+              onMouseDown={() => { onChange(p.name); onPick(p.id); setOpen(false); }}
+              style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--rule)' }}
+            >
+              {p.name}{!p.confirmed && <span className="field-hint"> · unconfirmed</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {ready && value && (
+        <div className="field-hint" style={{ marginTop: 2 }}>
+          No match picked yet — submitting will add you as a new player on the {club} {ageGroup} {tier} roster.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SignupForm({ onLoggedIn }) {
   const [type, setType] = useState('player');
   const [displayName, setDisplayName] = useState('');
+  const [playerId, setPlayerId] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [ageGroup, setAgeGroup] = useState('');
@@ -57,7 +123,7 @@ function SignupForm({ onLoggedIn }) {
     e.preventDefault();
     setBusy(true); setError('');
     const body = { type, displayName, email, password };
-    if (type === 'player') Object.assign(body, { ageGroup, league, club });
+    if (type === 'player') Object.assign(body, { ageGroup, league, club, playerId });
     else body.fanClubs = fanClubs;
 
     const res = await fetch('/api/auth/signup', {
@@ -83,21 +149,21 @@ function SignupForm({ onLoggedIn }) {
         <>
           <div className="field">
             <label>Age group</label>
-            <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} required>
+            <select value={ageGroup} onChange={(e) => { setAgeGroup(e.target.value); setPlayerId(null); }} required>
               <option value="" disabled>Select…</option>
               {LEAGUES.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
           <div className="field">
             <label>Division</label>
-            <select value={league} onChange={(e) => setLeague(e.target.value)} required>
+            <select value={league} onChange={(e) => { setLeague(e.target.value); setPlayerId(null); }} required>
               <option value="" disabled>Select…</option>
               {TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div className="field">
             <label>Club</label>
-            <select value={club} onChange={(e) => setClub(e.target.value)} required>
+            <select value={club} onChange={(e) => { setClub(e.target.value); setPlayerId(null); }} required>
               <option value="" disabled>Select…</option>
               {CLUBS.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -119,7 +185,11 @@ function SignupForm({ onLoggedIn }) {
         </div>
       )}
 
-      <div className="field"><label>Display name</label><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required /></div>
+      {type === 'player' ? (
+        <PlayerNameSearch club={club} ageGroup={ageGroup} tier={league} value={displayName} onChange={setDisplayName} onPick={setPlayerId} />
+      ) : (
+        <div className="field"><label>Display name</label><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required /></div>
+      )}
       <div className="field"><label>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
       <div className="field"><label>Password (min 8 characters)</label><PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} /></div>
       {error && <div className="error-text">{error}</div>}

@@ -15,7 +15,7 @@ async function GET(req, { params }) {
 
   const matches = await prisma.match.findMany({
     where: { league, tier },
-    include: { reports: { include: { account: { select: { trust: true } } } } },
+    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { player: true } } } } },
   });
   const referees = await prisma.referee.findMany();
   const refTrustByName = Object.fromEntries(referees.map((r) => [r.name, r.trust]));

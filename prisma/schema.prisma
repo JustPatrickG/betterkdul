@@ -25,6 +25,9 @@ model Account {
   lastActiveAt       DateTime?
   createdAt          DateTime  @default(now())
 
+  playerId String?  // links this account to its Player identity — set at
+  player   Player?  @relation(fields: [playerId], references: [id]) // signup via the same name-search/create flow goals use
+
   reports  Report[]
   sessions Session[]
 }
@@ -53,6 +56,7 @@ model Match {
   away                  String
   date                  DateTime?
   refName               String?
+  venue                 String?
 
   // Official result, as scraped from KDUL's site (or set manually by an admin)
   officialHome          Int?
@@ -88,12 +92,14 @@ model Report {
   account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   homeScore    Int?
   awayScore    Int?
-  homeScorers  String?
-  awayScorers  String?
+  homeScorers  String?  // auto-built summary text ("J. Murphy x2, L. Kelly") — kept for the
+  awayScorers  String?  // existing settlement algorithm; the real data now lives in Goal rows
   motm         String?
   yellowCards  String?
   redCards     String?
   createdAt    DateTime @default(now())
+
+  goals Goal[]
 
   @@unique([matchId, accountId]) // DB-level enforcement of "one report per account per match"
 }
@@ -120,4 +126,39 @@ model Article {
   body      String
   pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+/* A player on a specific club/age-group/tier roster. Built organically —
+   the first reporter to mention someone creates an unconfirmed entry;
+   once a second, independent reporter also picks that same player
+   (rather than typing a new name), it flips to confirmed. Unconfirmed
+   players count at reduced weight in settlement (see lib/algorithm.js)
+   so one person inventing a name can't swing the result on their own. */
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  club      String
+  ageGroup  String
+  tier      String
+  confirmed Boolean  @default(false)
+  createdBy String?  // accountId of whoever first added them
+  createdAt DateTime @default(now())
+
+  goals    Goal[]
+  accounts Account[] // accounts whose owner is this player (normally one, but not enforced)
+
+  @@index([club, ageGroup, tier])
+}
+
+model Goal {
+  id         String   @id @default(cuid())
+  reportId   String
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  side       String   // "home" | "away"
+  playerId   String?
+  player     Player?  @relation(fields: [playerId], references: [id])
+  playerName String   // denormalized so a goal still displays even if the player row is later deleted
+  minute     Int?
+  half       String?  // "1st" | "2nd"
+  createdAt  DateTime @default(now())
 }

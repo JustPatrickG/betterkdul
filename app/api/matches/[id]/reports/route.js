@@ -1,13 +1,32 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/db';
 import { getSessionAccount } from '../../../../../lib/auth';
+import { resolvePlayer } from '../../../../../lib/players';
 
 export const dynamic = 'force-dynamic';
 
 const WEEKLY_LIMIT = 2;
+const MAX_GOALS_PER_SIDE = 30;
+const VALID_HALVES = ['1st', '2nd'];
 
 function isValidScore(n) {
   return Number.isInteger(n) && n >= 0 && n <= 50;
+}
+
+function buildSummary(resolvedGoals) {
+  const counts = {};
+  resolvedGoals.forEach((g) => { counts[g.playerName] = (counts[g.playerName] || 0) + 1; });
+  return Object.entries(counts).map(([n, c]) => (c > 1 ? `${n} x${c}` : n)).join(', ') || null;
+}
+
+function sanitizeGoalList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, MAX_GOALS_PER_SIDE).map((g) => ({
+    name: g && g.name ? String(g.name).trim().slice(0, 80) : '',
+    playerId: g && g.playerId ? String(g.playerId) : null,
+    minute: g && Number.isInteger(Number(g.minute)) && Number(g.minute) >= 0 && Number(g.minute) <= 130 ? Number(g.minute) : null,
+    half: g && VALID_HALVES.includes(g.half) ? g.half : null,
+  })).filter((g) => g.name || g.playerId);
 }
 
 async function POST(req, { params }) {
@@ -45,21 +64,56 @@ async function POST(req, { params }) {
     return NextResponse.json({ error: 'invalid-score' }, { status: 400 });
   }
 
-  const report = await prisma.report.create({
-    data: {
-      matchId: match.id,
-      accountId: account.id,
-      homeScore,
-      awayScore,
-      homeScorers: body.homeScorers ? String(body.homeScorers).slice(0, 500) : null,
-      awayScorers: body.awayScorers ? String(body.awayScorers).slice(0, 500) : null,
-      motm: body.motm ? String(body.motm).slice(0, 200) : null,
-      yellowCards: body.yellowCards ? String(body.yellowCards).slice(0, 500) : null,
-      redCards: body.redCards ? String(body.redCards).slice(0, 500) : null,
-    },
+  const homeGoalsIn = sanitizeGoalList(body.homeGoals);
+  const awayGoalsIn = sanitizeGoalList(body.awayGoals);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const report = await tx.report.create({
+      data: {
+        matchId: match.id,
+        accountId: account.id,
+        homeScore,
+        awayScore,
+        motm: body.motm ? String(body.motm).slice(0, 200) : null,
+        yellowCards: body.yellowCards ? String(body.yellowCards).slice(0, 500) : null,
+        redCards: body.redCards ? String(body.redCards).slice(0, 500) : null,
+      },
+    });
+
+    async function writeGoals(side, list, club) {
+      const resolved = [];
+      for (const g of list) {
+        let player = null;
+        if (g.playerId) {
+          player = await tx.player.findUnique({ where: { id: g.playerId } });
+          if (!player || player.club !== club || player.ageGroup !== match.league || player.tier !== match.tier) {
+            player = null; // stale/mismatched id from the client — fall back to name resolution
+          }
+        }
+        if (!player && g.name) {
+          player = await resolvePlayer(tx, club, match.league, match.tier, g.name, account.id);
+        }
+        if (!player) continue;
+        await tx.goal.create({
+          data: { reportId: report.id, side, playerId: player.id, playerName: player.name, minute: g.minute, half: g.half },
+        });
+        resolved.push({ playerName: player.name });
+      }
+      return resolved;
+    }
+
+    const homeResolved = await writeGoals('home', homeGoalsIn, match.home);
+    const awayResolved = await writeGoals('away', awayGoalsIn, match.away);
+
+    await tx.report.update({
+      where: { id: report.id },
+      data: { homeScorers: buildSummary(homeResolved), awayScorers: buildSummary(awayResolved) },
+    });
+
+    return report;
   });
 
-  return NextResponse.json({ ok: true, report });
+  return NextResponse.json({ ok: true, report: result });
 }
 
 export { POST };
