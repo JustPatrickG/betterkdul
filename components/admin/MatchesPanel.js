@@ -8,6 +8,19 @@ const CLUBS = ['Naas Town', 'Sallins Rovers', 'Athy Celtic', 'Newbridge Town', '
   'Clane United', 'Monasterevin FC', 'Kilcullen Athletic', 'Leixlip United', 'Celbridge Town',
   'Maynooth Town', 'Confey FC', 'Rathangan Rovers', 'Ballymore Eustace', 'Two Mile House'];
 
+function toDatetimeLocalValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function localDatetimeToISO(local) {
+  if (!local) return null;
+  const d = new Date(local);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function ReportRow({ r, onChanged }) {
   const [f, setF] = useState({
     homeScore: r.homeScore ?? '', awayScore: r.awayScore ?? '',
@@ -53,7 +66,7 @@ function MatchEditor({ m, onChanged, refereeNames }) {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({
     league: m.league, tier: m.tier, home: m.home, away: m.away,
-    date: m.date ? m.date.slice(0, 16) : '', refName: m.refName || '',
+    date: m.date ? toDatetimeLocalValue(m.date) : '', refName: m.refName || '',
     officialHome: m.officialHome ?? '', officialAway: m.officialAway ?? '', officialHomeScorers: m.officialHomeScorers || '', officialAwayScorers: m.officialAwayScorers || '',
     settled: m.settled, settledHome: m.settledHome ?? '', settledAway: m.settledAway ?? '',
     settledHomeScorers: m.settledHomeScorers || '', settledAwayScorers: m.settledAwayScorers || '', settledMotm: m.settledMotm || '', settledYellow: m.settledYellow || '', settledRed: m.settledRed || '',
@@ -68,7 +81,8 @@ function MatchEditor({ m, onChanged, refereeNames }) {
 
   async function save() {
     setBusy(true);
-    await fetch(`/api/admin/matches/${m.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
+    const body = { ...f, date: localDatetimeToISO(f.date) };
+    await fetch(`/api/admin/matches/${m.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     setBusy(false);
     onChanged();
   }
@@ -157,7 +171,8 @@ function NewMatchForm({ onCreated, refereeNames }) {
 
   async function create() {
     setBusy(true);
-    await fetch('/api/admin/matches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
+    const body = { ...f, date: localDatetimeToISO(f.date) };
+    await fetch('/api/admin/matches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     setBusy(false);
     setOpen(false);
     onCreated();
