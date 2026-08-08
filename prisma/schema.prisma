@@ -128,12 +128,12 @@ model Article {
   createdAt DateTime @default(now())
 }
 
-/* A player on a specific club/age-group/tier roster. Built organically —
-   the first reporter to mention someone creates an unconfirmed entry;
-   once a second, independent reporter also picks that same player
-   (rather than typing a new name), it flips to confirmed. Unconfirmed
-   players count at reduced weight in settlement (see lib/algorithm.js)
-   so one person inventing a name can't swing the result on their own. */
+// A player on a specific club/age-group/tier roster. Built organically —
+// the first reporter to mention someone creates an unconfirmed entry;
+// once a second, independent reporter also picks that same player
+// (rather than typing a new name), it flips to confirmed. Unconfirmed
+// players count at reduced weight in settlement (see lib/algorithm.js)
+// so one person inventing a name can't swing the result on their own.
 model Player {
   id        String   @id @default(cuid())
   name      String
