@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  displayName        String
+  email              String    @unique
+  passwordHash       String
+  type               String    // "player" | "fan"
+  ageGroup           String?   // e.g. "U16" — player only
+  league             String?   // tier: "Premier" | "Major" | "Major 1" — player only
+  club               String?   // player only
+  fanClubs           String[]  @default([]) // fan only
+  verificationStatus String    @default("pending_review") // pending_review | verified | suspended
+  nameMatchesEmail   Boolean?
+  trust              Int       @default(0)
+  isAdmin            Boolean   @default(false)
+  lastActiveAt       DateTime?
+  createdAt          DateTime  @default(now())
+
+  reports  Report[]
+  sessions Session[]
+}
+
+model Session {
+  token     String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Referee {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  trust     Int      @default(10)
+  sourceUrl String?  // KDUL profile URL, if the scraper found one
+  createdAt DateTime @default(now())
+}
+
+model Match {
+  id                    String    @id @default(cuid())
+  league                String    // age group, e.g. "U16"
+  tier                  String    // division, e.g. "Premier" | "Major" | "Major 1"
+  home                  String
+  away                  String
+  date                  DateTime?
+  refName               String?
+
+  // Official result, as scraped from KDUL's site (or set manually by an admin)
+  officialHome          Int?
+  officialAway          Int?
+  officialHomeScorers   String?
+  officialAwayScorers   String?
+  officialSource        String?   // "kdul-scrape" | "manual"
+
+  // Locked result, written once by the settlement cron 24h after `date`
+  settled               Boolean   @default(false)
+  settledHome           Int?
+  settledAway           Int?
+  settledHomeScorers    String?
+  settledAwayScorers    String?
+  settledMotm           String?
+  settledYellow         String?
+  settledRed            String?
+  settledAt             DateTime?
+
+  kdulSourceId          String?   @unique // dedupe key from the scraper
+  createdAt             DateTime  @default(now())
+
+  reports Report[]
+
+  @@index([league, tier])
+}
+
+model Report {
+  id           String   @id @default(cuid())
+  matchId      String
+  match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  accountId    String
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  homeScore    Int?
+  awayScore    Int?
+  homeScorers  String?
+  awayScorers  String?
+  motm         String?
+  yellowCards  String?
+  redCards     String?
+  createdAt    DateTime @default(now())
+
+  @@unique([matchId, accountId]) // DB-level enforcement of "one report per account per match"
+}
+
+model ClubInfo {
+  club      String    @id
+  grounds   String?
+  updatedBy String?
+  updatedAt DateTime?
+}
+
+model TeamInfo {
+  key       String    @id // "club|league|tier"
+  notes     String?
+  updatedBy String?
+  updatedAt DateTime?
+}
+
+model Article {
+  id        String   @id @default(cuid())
+  category  String
+  headline  String
+  teaser    String
+  body      String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
