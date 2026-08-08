@@ -6,6 +6,7 @@ import ReportsPanel from '../../components/admin/ReportsPanel';
 import RefereesPanel from '../../components/admin/RefereesPanel';
 import ArticlesPanel from '../../components/admin/ArticlesPanel';
 import ClubTeamPanel from '../../components/admin/ClubTeamPanel';
+import PlayerImportPanel from '../../components/admin/PlayerImportPanel';
 
 const TABS = [
   { id: 'accounts', label: 'Accounts' },
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'referees', label: 'Referees' },
   { id: 'articles', label: 'Headlines' },
   { id: 'clubs', label: 'Clubs/Teams' },
+  { id: 'players', label: 'Player Import' },
 ];
 
 function AdminPage() {
@@ -45,6 +47,7 @@ function AdminPage() {
         {tab === 'referees' && <RefereesPanel />}
         {tab === 'articles' && <ArticlesPanel />}
         {tab === 'clubs' && <ClubTeamPanel />}
+        {tab === 'players' && <PlayerImportPanel />}
       </div>
     </div>
   );

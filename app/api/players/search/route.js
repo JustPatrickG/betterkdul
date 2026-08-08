@@ -1,27 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/db';
+import { normalize, editDistance } from '../../../../lib/players';
 
 export const dynamic = 'force-dynamic';
-
-function normalize(s) {
-  return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
-}
-
-/* Cheap edit-distance so close misspellings ("Jonny" vs "Johnny") still
-   surface as suggestions instead of silently inviting a duplicate. Fine
-   for short names at roster scale — no need for a real search index. */
-function editDistance(a, b) {
-  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
-  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-  return dp[a.length][b.length];
-}
 
 async function GET(req) {
   const { searchParams } = new URL(req.url);

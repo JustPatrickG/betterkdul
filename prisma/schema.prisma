@@ -162,3 +162,24 @@ model Goal {
   half       String?  // "1st" | "2nd"
   createdAt  DateTime @default(now())
 }
+
+// Holding area for bulk-imported names before they become real Player
+// rows. Deliberately loose — ageGroup/tier are nullable because bulk
+// sources (old match reports, scraped top-scorer tables) often only
+// give a club, not an exact age group. Nothing here counts as a real
+// player until an admin reviews it: assigns an age group/tier and
+// confirms, or merges it into an existing candidate/player if it's a
+// misspelling or shortened form of someone already known.
+model PlayerImportCandidate {
+  id               String    @id @default(cuid())
+  name             String
+  club             String
+  ageGroup         String?   // unknown until an admin assigns one
+  tier             String?
+  sourceLabel      String?   // e.g. "Naas AFC match reports, 2025/26"
+  sourceNote       String?   // free text — "scored twice", "captain", "first name only", etc.
+  status           String    @default("pending") // pending | confirmed | discarded | merged
+  mergedIntoId     String?   // if merged into another candidate rather than promoted directly
+  resolvedPlayerId String?   // the real Player row this became, once confirmed
+  createdAt        DateTime  @default(now())
+}
