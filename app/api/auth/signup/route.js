@@ -63,20 +63,28 @@ async function POST(req) {
     const created = await tx.account.create({ data });
 
     if (type === 'player') {
-      // Match/create against the shared player roster — same logic and
-      // same confirmation rules as attributing a goal to someone. If they
-      // picked an existing entry from the search box, playerId short-
-      // circuits straight to it; otherwise it's resolved fresh from the
-      // typed name. Done after account creation so the new Player's
-      // createdBy points at a real account, not a placeholder.
+      // Match/create against the shared player roster — matched by name
+      // ALONE (same logic as goal-scoring), never scoped to a club, since
+      // someone who moved clubs or aged up is still the same person. If
+      // they picked an existing entry from the search box, playerId
+      // short-circuits straight to it and we just resolve/create the
+      // affiliation for THIS club/age/tier; otherwise the whole thing is
+      // resolved fresh from the typed name. Done after account creation
+      // so the new Player/affiliation's createdBy points at a real
+      // account, not a placeholder.
       let player = null;
-      if (playerId) {
-        player = await tx.player.findUnique({ where: { id: String(playerId) } });
-        if (!player || player.club !== club || player.ageGroup !== ageGroup || player.tier !== league) player = null;
+      if (playerId) player = await tx.player.findUnique({ where: { id: String(playerId) } });
+
+      if (player) {
+        const existingAff = await tx.playerAffiliation.findFirst({ where: { playerId: player.id, club, ageGroup, tier: league } });
+        if (!existingAff) {
+          await tx.playerAffiliation.create({ data: { playerId: player.id, club, ageGroup, tier: league, confirmed: false, createdBy: created.id } });
+        }
+      } else {
+        const resolved = await resolvePlayer(tx, username, club, ageGroup, league, created.id);
+        player = resolved.player;
       }
-      if (!player) {
-        player = await resolvePlayer(tx, club, ageGroup, league, username, created.id);
-      }
+
       if (player) {
         return tx.account.update({ where: { id: created.id }, data: { playerId: player.id } });
       }

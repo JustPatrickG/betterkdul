@@ -24,7 +24,7 @@ function eligibility(match, account) {
 async function GET(req, { params }) {
   const match = await prisma.match.findUnique({
     where: { id: params.id },
-    include: { reports: { include: { account: { select: { id: true, displayName: true, trust: true } }, goals: { include: { player: true } } }, orderBy: { createdAt: 'desc' } } },
+    include: { reports: { include: { account: { select: { id: true, displayName: true, trust: true } }, goals: { include: { affiliation: true } } }, orderBy: { createdAt: 'desc' } } },
   });
   if (!match) return NextResponse.json({ error: 'not-found' }, { status: 404 });
 

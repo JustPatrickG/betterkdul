@@ -38,7 +38,9 @@ function CandidateRow({ c, onChanged }) {
         <div className="notice-box" style={{ background: 'var(--red-dim)', borderColor: 'var(--red)', color: 'var(--red)', marginTop: 6 }}>
           Possible duplicate of:
           {c.possibleDuplicatePlayers.map((p) => (
-            <div key={p.id}>— {p.name} (already a confirmed player, {p.ageGroup} {p.tier})</div>
+            <div key={p.id}>
+              — {p.name} (already a known player{p.affiliations.length > 0 ? `, plays for ${p.affiliations.map((a) => `${a.club} ${a.ageGroup} ${a.tier}`).join(' & ')}` : ', no club attached yet'})
+            </div>
           ))}
           {c.possibleDuplicateCandidates.map((d) => (
             <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -49,6 +51,9 @@ function CandidateRow({ c, onChanged }) {
         </div>
       )}
 
+      <div className="field-hint" style={{ marginTop: 8 }}>
+        Age group and division are optional — leave blank to confirm just the name, add them if you know where they currently play.
+      </div>
       <div className="row2" style={{ marginTop: 8 }}>
         <div className="field">
           <label>Age group</label>
@@ -67,8 +72,8 @@ function CandidateRow({ c, onChanged }) {
       </div>
       {error && <div className="error-text">{error}</div>}
       <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-        <button className="btn-small" disabled={busy || !ageGroup || !tier} onClick={() => resolve('confirm', { ageGroup, tier })}>
-          {busy ? 'Working…' : 'Confirm as real player'}
+        <button className="btn-small" disabled={busy} onClick={() => resolve('confirm', { ageGroup, tier })}>
+          {busy ? 'Working…' : ageGroup && tier ? 'Confirm name + club/age' : 'Confirm name only'}
         </button>
         <button className="btn-small" style={{ color: 'var(--red)', borderColor: 'var(--red)' }} disabled={busy} onClick={() => resolve('discard')}>Discard</button>
       </div>

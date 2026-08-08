@@ -16,7 +16,7 @@ async function GET(req) {
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not set' }, { status: 500 });
 
   const matches = await prisma.match.findMany({
-    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { player: true } } } } },
+    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { affiliation: true } } } } },
   });
   const referees = await prisma.referee.findMany();
   const refByName = Object.fromEntries(referees.map((r) => [r.name, r.trust]));

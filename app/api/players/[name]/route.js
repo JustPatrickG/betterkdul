@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 async function GET(req, { params }) {
   const name = decodeURIComponent(params.name);
   const matches = await prisma.match.findMany({
-    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { player: true } } } } },
+    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { affiliation: true } } } } },
   });
   const referees = await prisma.referee.findMany();
   const refTrustByName = Object.fromEntries(referees.map((r) => [r.name, r.trust]));

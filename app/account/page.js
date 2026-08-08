@@ -47,13 +47,12 @@ function PlayerNameSearch({ club, ageGroup, tier, value, onChange, onPick }) {
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
   const debounceRef = useRef(null);
-  const ready = Boolean(club && ageGroup && tier);
 
   function search(q) {
-    if (!ready) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetch(`/api/players/search?q=${encodeURIComponent(q)}&club=${encodeURIComponent(club)}&ageGroup=${encodeURIComponent(ageGroup)}&tier=${encodeURIComponent(tier)}`)
+      const hints = club && ageGroup && tier ? `&club=${encodeURIComponent(club)}&ageGroup=${encodeURIComponent(ageGroup)}&tier=${encodeURIComponent(tier)}` : '';
+      fetch(`/api/players/search?q=${encodeURIComponent(q)}${hints}`)
         .then((r) => r.json())
         .then(setResults)
         .catch(() => setResults([]));
@@ -73,29 +72,33 @@ function PlayerNameSearch({ club, ageGroup, tier, value, onChange, onPick }) {
       <input
         value={value}
         onChange={(e) => handleChange(e.target.value)}
-        onFocus={() => { if (ready) { setOpen(true); search(value); } }}
+        onFocus={() => { setOpen(true); search(value); }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder={ready ? 'Start typing your name…' : 'Select age group, division, and club first'}
-        disabled={!ready}
+        placeholder="Start typing your name…"
         autoComplete="off"
         required
       />
       {open && results.length > 0 && (
-        <div style={{ position: 'absolute', zIndex: 5, background: 'var(--paper)', border: '1px solid var(--rule)', width: '100%', maxHeight: 160, overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', zIndex: 5, background: 'var(--paper)', border: '1px solid var(--rule)', width: '100%', maxHeight: 220, overflowY: 'auto' }}>
           {results.map((p) => (
             <div
               key={p.id}
               onMouseDown={() => { onChange(p.name); onPick(p.id); setOpen(false); }}
               style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--rule)' }}
             >
-              {p.name}{!p.confirmed && <span className="field-hint"> · unconfirmed</span>}
+              <div>{p.name}{p.matchesHint && <span className="field-hint"> · already known at {club}, {ageGroup} {tier}</span>}</div>
+              {p.affiliations.length > 0 && (
+                <div className="field-hint">
+                  {p.affiliations.map((a, i) => `${a.club} ${a.ageGroup} ${a.tier}${a.confirmed ? '' : ' (unconfirmed)'}`).join(' · ')}
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
-      {ready && value && (
+      {value && (
         <div className="field-hint" style={{ marginTop: 2 }}>
-          No match picked yet — submitting will add you as a new player on the {club} {ageGroup} {tier} roster.
+          No match picked yet — submitting will add you as a new player{club && ageGroup && tier ? ` on the ${club} ${ageGroup} ${tier} roster` : ''}.
         </div>
       )}
     </div>

@@ -35,7 +35,7 @@ async function GET(req) {
 
   const candidates = await prisma.match.findMany({
     where: { settled: false, date: { not: null, lte: dayAgo } },
-    include: { reports: { include: { account: { select: { id: true, trust: true } }, goals: { include: { player: true } } } } },
+    include: { reports: { include: { account: { select: { id: true, trust: true } }, goals: { include: { affiliation: true } } } } },
   });
 
   const referees = await prisma.referee.findMany();
@@ -47,7 +47,7 @@ async function GET(req) {
     const reports = m.reports.map((r) => ({
       ...r,
       reporterTrust: r.account?.trust ?? 0,
-      hasUnconfirmedPlayer: (r.goals || []).some((g) => g.player && !g.player.confirmed),
+      hasUnconfirmedPlayer: (r.goals || []).some((g) => g.affiliation && !g.affiliation.confirmed),
     }));
     const ref = refByName[m.refName];
     const entries = buildEntries(m, reports, ref?.trust ?? REF_START_TRUST);

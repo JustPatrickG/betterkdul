@@ -10,7 +10,7 @@ async function GET(req, { params }) {
 
   const matches = await prisma.match.findMany({
     where: { refName: ref.name },
-    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { player: true } } } } },
+    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { affiliation: true } } } } },
     orderBy: { date: 'desc' },
   });
   const referees = await prisma.referee.findMany();

@@ -7,20 +7,22 @@ export const dynamic = 'force-dynamic';
 async function GET(req) {
   const { searchParams } = new URL(req.url);
   const q = normalize(searchParams.get('q') || '');
-  const club = searchParams.get('club') || '';
-  const ageGroup = searchParams.get('ageGroup') || '';
-  const tier = searchParams.get('tier') || '';
-  if (!club || !ageGroup || !tier) return NextResponse.json([]);
+  if (!q) return NextResponse.json([]);
 
-  const roster = await prisma.player.findMany({ where: { club, ageGroup, tier } });
+  // Name match across every player, never scoped to a club — someone
+  // who moved clubs or aged up is still the same person and should
+  // still turn up. If club/ageGroup/tier were passed, they're used
+  // only to sort a matching affiliation to the top of that player's
+  // shown history, never to filter who's searchable at all.
+  const hintClub = searchParams.get('club') || '';
+  const hintAgeGroup = searchParams.get('ageGroup') || '';
+  const hintTier = searchParams.get('tier') || '';
 
-  if (!q) {
-    // No query yet — just show the roster, confirmed players first.
-    const sorted = [...roster].sort((a, b) => Number(b.confirmed) - Number(a.confirmed) || a.name.localeCompare(b.name));
-    return NextResponse.json(sorted.slice(0, 25).map((p) => ({ id: p.id, name: p.name, confirmed: p.confirmed })));
-  }
+  const players = await prisma.player.findMany({
+    include: { affiliations: { orderBy: { createdAt: 'desc' } } },
+  });
 
-  const scored = roster
+  const scored = players
     .map((p) => {
       const n = normalize(p.name);
       let score;
@@ -31,10 +33,18 @@ async function GET(req) {
       return { p, score };
     })
     .filter((x) => x.score <= 5) // cuts off names that aren't remotely close
-    .sort((a, b) => a.score - b.score || Number(b.p.confirmed) - Number(a.p.confirmed))
+    .sort((a, b) => a.score - b.score || a.p.name.localeCompare(b.p.name))
     .slice(0, 10);
 
-  return NextResponse.json(scored.map(({ p }) => ({ id: p.id, name: p.name, confirmed: p.confirmed })));
+  return NextResponse.json(scored.map(({ p }) => {
+    const matchingAffiliation = p.affiliations.find((a) => a.club === hintClub && a.ageGroup === hintAgeGroup && a.tier === hintTier);
+    return {
+      id: p.id,
+      name: p.name,
+      matchesHint: Boolean(matchingAffiliation),
+      affiliations: p.affiliations.map((a) => ({ club: a.club, ageGroup: a.ageGroup, tier: a.tier, confirmed: a.confirmed })),
+    };
+  }));
 }
 
 export { GET };

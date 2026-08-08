@@ -13,28 +13,30 @@ async function GET() {
     where: { status: 'pending' },
     orderBy: [{ club: 'asc' }, { name: 'asc' }],
   });
-  const existingPlayers = await prisma.player.findMany({ select: { id: true, name: true, club: true, ageGroup: true, tier: true } });
+  const existingPlayers = await prisma.player.findMany({
+    include: { affiliations: { select: { club: true, ageGroup: true, tier: true } } },
+  });
 
-  // Flag likely duplicates — same club, close-enough name — against both
-  // other pending candidates and already-confirmed players. This is a
-  // hint for the admin to look at, never an automatic merge.
+  // Flag likely duplicates by name alone — a name match against an
+  // existing player is worth surfacing even if the club looks
+  // different, since that's exactly the "moved clubs / aged up" case
+  // this whole redesign exists for. Never auto-merges — just a hint.
   const withHints = candidates.map((c) => {
     const cNorm = normalize(c.name);
     const dupCandidates = candidates
-      .filter((other) => other.id !== c.id && normalize(other.club) === normalize(c.club))
+      .filter((other) => other.id !== c.id)
       .filter((other) => {
         const n = normalize(other.name);
         return n === cNorm || n.startsWith(cNorm) || cNorm.startsWith(n) || editDistance(n, cNorm) <= 2;
       })
-      .map((other) => ({ id: other.id, name: other.name }));
+      .map((other) => ({ id: other.id, name: other.name, club: other.club }));
 
     const dupPlayers = existingPlayers
-      .filter((p) => normalize(p.club) === normalize(c.club))
       .filter((p) => {
         const n = normalize(p.name);
         return n === cNorm || n.startsWith(cNorm) || cNorm.startsWith(n) || editDistance(n, cNorm) <= 2;
       })
-      .map((p) => ({ id: p.id, name: p.name, ageGroup: p.ageGroup, tier: p.tier }));
+      .map((p) => ({ id: p.id, name: p.name, affiliations: p.affiliations }));
 
     return { ...c, possibleDuplicateCandidates: dupCandidates, possibleDuplicatePlayers: dupPlayers };
   });

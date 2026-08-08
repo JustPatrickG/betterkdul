@@ -18,7 +18,7 @@ async function GET(req) {
 
   const matches = await prisma.match.findMany({
     where,
-    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { player: true } } } } },
+    include: { reports: { include: { account: { select: { trust: true } }, goals: { include: { affiliation: true } } } } },
     orderBy: { date: 'asc' },
   });
   const referees = await prisma.referee.findMany();

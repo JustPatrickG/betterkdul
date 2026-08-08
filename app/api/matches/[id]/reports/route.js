@@ -84,18 +84,42 @@ async function POST(req, { params }) {
       const resolved = [];
       for (const g of list) {
         let player = null;
+        let affiliation = null;
+
         if (g.playerId) {
           player = await tx.player.findUnique({ where: { id: g.playerId } });
-          if (!player || player.club !== club || player.ageGroup !== match.league || player.tier !== match.tier) {
-            player = null; // stale/mismatched id from the client — fall back to name resolution
+        }
+        if (player) {
+          // Picked from search — resolve/create the specific club+age+tier
+          // affiliation for THIS match's context (may not exist yet even
+          // for a known player, e.g. their first report at a new club).
+          const existingAff = await tx.playerAffiliation.findFirst({
+            where: { playerId: player.id, club, ageGroup: match.league, tier: match.tier },
+          });
+          if (existingAff) {
+            affiliation = existingAff;
+            if (!affiliation.confirmed) {
+              const otherAccountUsedThem = await tx.goal.findFirst({
+                where: { affiliationId: affiliation.id, report: { accountId: { not: account.id } } },
+              });
+              if (otherAccountUsedThem) {
+                affiliation = await tx.playerAffiliation.update({ where: { id: affiliation.id }, data: { confirmed: true } });
+              }
+            }
+          } else {
+            affiliation = await tx.playerAffiliation.create({
+              data: { playerId: player.id, club, ageGroup: match.league, tier: match.tier, confirmed: false, createdBy: account.id },
+            });
           }
+        } else if (g.name) {
+          const resolved2 = await resolvePlayer(tx, g.name, club, match.league, match.tier, account.id);
+          player = resolved2.player;
+          affiliation = resolved2.affiliation;
         }
-        if (!player && g.name) {
-          player = await resolvePlayer(tx, club, match.league, match.tier, g.name, account.id);
-        }
+
         if (!player) continue;
         await tx.goal.create({
-          data: { reportId: report.id, side, playerId: player.id, playerName: player.name, minute: g.minute, half: g.half },
+          data: { reportId: report.id, side, playerId: player.id, affiliationId: affiliation ? affiliation.id : null, playerName: player.name, minute: g.minute, half: g.half },
         });
         resolved.push({ playerName: player.name });
       }

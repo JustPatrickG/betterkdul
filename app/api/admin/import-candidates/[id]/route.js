@@ -36,25 +36,35 @@ async function PATCH(req, { params }) {
   if (action === 'confirm') {
     const ageGroup = body.ageGroup ? String(body.ageGroup) : null;
     const tier = body.tier ? String(body.tier) : null;
-    if (!ageGroup || !tier) return NextResponse.json({ error: 'age-group-and-tier-required' }, { status: 400 });
 
     // An admin reviewing this IS the human verification — no need for
     // the "wait for a second independent reporter" rule that exists to
-    // substitute for that when nobody's actually looked at it. Straight
-    // to confirmed, but still check for an existing match first so this
-    // doesn't create a duplicate the admin just didn't happen to search for.
-    const existing = await prisma.player.findMany({ where: { club: candidate.club, ageGroup, tier } });
+    // substitute for that when nobody's actually looked at it. The
+    // person's name is confirmed by name alone; age group and division
+    // are optional — if given, they attach as a confirmed affiliation
+    // (the club came with the import), otherwise the name goes in with
+    // no club/age attached yet, exactly as asked for.
+    const allPlayers = await prisma.player.findMany();
     const norm = normalize(candidate.name);
-    let player = existing.find((p) => normalize(p.name) === norm);
+    let player = allPlayers.find((p) => normalize(p.name) === norm);
 
-    if (player) {
-      if (!player.confirmed) {
-        player = await prisma.player.update({ where: { id: player.id }, data: { confirmed: true } });
-      }
-    } else {
-      player = await prisma.player.create({
-        data: { name: candidate.name, club: candidate.club, ageGroup, tier, confirmed: true, createdBy: admin.id },
+    if (!player) {
+      player = await prisma.player.create({ data: { name: candidate.name, createdBy: admin.id } });
+    }
+
+    if (ageGroup && tier && candidate.club) {
+      const existingAff = await prisma.playerAffiliation.findFirst({
+        where: { playerId: player.id, club: candidate.club, ageGroup, tier },
       });
+      if (existingAff) {
+        if (!existingAff.confirmed) {
+          await prisma.playerAffiliation.update({ where: { id: existingAff.id }, data: { confirmed: true } });
+        }
+      } else {
+        await prisma.playerAffiliation.create({
+          data: { playerId: player.id, club: candidate.club, ageGroup, tier, confirmed: true, source: candidate.sourceLabel, createdBy: admin.id },
+        });
+      }
     }
 
     await prisma.playerImportCandidate.update({

@@ -78,14 +78,19 @@ function GoalRow({ index, club, ageGroup, tier, value, onChange }) {
           autoComplete="off"
         />
         {open && results.length > 0 && (
-          <div style={{ position: 'absolute', zIndex: 5, background: 'var(--paper)', border: '1px solid var(--rule)', width: '100%', maxHeight: 160, overflowY: 'auto' }}>
+          <div style={{ position: 'absolute', zIndex: 5, background: 'var(--paper)', border: '1px solid var(--rule)', width: '100%', maxHeight: 220, overflowY: 'auto' }}>
             {results.map((p) => (
               <div
                 key={p.id}
                 onMouseDown={() => pick(p)}
                 style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--rule)' }}
               >
-                {p.name}{!p.confirmed && <span className="field-hint"> · unconfirmed</span>}
+                <div>{p.name}{p.matchesHint && <span className="field-hint"> · plays for {club}, {ageGroup} {tier}</span>}</div>
+                {p.affiliations.length > 0 && (
+                  <div className="field-hint">
+                    {p.affiliations.map((a) => `${a.club} ${a.ageGroup} ${a.tier}${a.confirmed ? '' : ' (unconfirmed)'}`).join(' · ')}
+                  </div>
+                )}
               </div>
             ))}
           </div>
